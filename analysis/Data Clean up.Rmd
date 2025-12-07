@@ -1,0 +1,130 @@
+---
+title: "clean up"
+author: "Joshua K"
+date: "2025-12-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(dplyr)
+```
+
+## Load datasets
+
+Load all datasets
+
+```{r}
+#Contains measurements of major air pollutants across US counties
+airquality2019 <- read.csv("data/AQSR2019.csv")
+airquality2018 <- read.csv("data/AQSR2018.csv")
+airquality2017 <- read.csv("data/AQSR2017.csv")
+airquality2016 <- read.csv("data/AQSR2016.csv")
+airquality2015 <- read.csv("data/AQSR2015.csv")
+airquality2014 <- read.csv("data/AQSR2014.csv")
+airquality2013 <- read.csv("data/AQSR2013.csv")
+airquality2012 <- read.csv("data/AQSR2012.csv")
+airquality2011 <- read.csv("data/AQSR2011.csv")
+airquality2010 <- read.csv("data/AQSR2010.csv")
+
+#Contains estimates for health expenditures per capita for US counties
+healthexpenditure <- read.csv("data/IHME_USA_HEALTH_CARE_SPENDING_CAUSE_COUNTY_2010_2019_TABLE_1_COUNTY_TOTAL_PER_CAPITA_2010_2019_Y2025M02D13.CSV")
+
+#Contains median household income for US counties
+income <- read.csv("data/SAIPE_income.csv")
+```
+
+## Clean up
+
+```{r}
+he_clean <- healthexpenditure %>% 
+  filter(age_name == "All ages") %>%
+  select(
+    Year = year_id,
+    County.Code = fips,
+    -location_name,
+    Spending.Per.Capita.Mean = spend_per_capita_mean
+  )
+```
+
+```{r}
+income_clean <- income %>%
+  rename(County.Code = ID,
+         Median.Household.Income = Median.Household.Income.) %>%
+  select(-X90..Confidence.Interval, -Name) %>%
+  mutate(Median.Household.Income = as.numeric(gsub(",", "", Median.Household.Income)))
+```
+
+
+```{r}
+clean_aq <- function(data, year) {
+  data %>%
+  select( # select relevant variables based on EPA breakpoints
+    County.Code, County,
+    CO.2nd.Max.8.hr, NO2.Mean.1.hr, SO2.Mean.1.hr,
+    Ozone.4th.Max.8.hr, PM2.5.Weighted.Mean.24.hr, PM10.Mean.24.hr
+  ) %>%
+  filter(
+    !if_any(everything(), ~ is.na(.x) | .x == ".") # remove NA and "." 
+  ) %>% 
+  mutate(
+    Year = year, .before = 1  # Add year column to first column
+  ) %>%
+  mutate(across(
+    c(
+      CO.2nd.Max.8.hr, NO2.Mean.1.hr, SO2.Mean.1.hr,
+      Ozone.4th.Max.8.hr, PM2.5.Weighted.Mean.24.hr, PM10.Mean.24.hr
+    ),
+    as.numeric #turn variables into numeric
+  )) %>%
+  rename(
+    CO = CO.2nd.Max.8.hr,
+    NO2 = NO2.Mean.1.hr,
+    SO2 = SO2.Mean.1.hr,
+    O3 = Ozone.4th.Max.8.hr,
+    PM2.5 = PM2.5.Weighted.Mean.24.hr,
+    PM10 = PM10.Mean.24.hr
+    )
+}
+```
+
+```{r}
+#combine air quality data
+aq_clean_2010 <- clean_aq(airquality2010, 2010)
+aq_clean_2011 <- clean_aq(airquality2011, 2011)
+aq_clean_2012 <- clean_aq(airquality2012, 2012)
+aq_clean_2013 <- clean_aq(airquality2013, 2013)
+aq_clean_2014 <- clean_aq(airquality2014, 2014)
+aq_clean_2015 <- clean_aq(airquality2015, 2015)
+aq_clean_2016 <- clean_aq(airquality2016, 2016)
+aq_clean_2017 <- clean_aq(airquality2017, 2017)
+aq_clean_2018 <- clean_aq(airquality2018, 2018)
+aq_clean_2019 <- clean_aq(airquality2019, 2019)
+
+aq_clean_all <- bind_rows(
+  aq_clean_2010,
+  aq_clean_2011,
+  aq_clean_2012,
+  aq_clean_2013,
+  aq_clean_2014,
+  aq_clean_2015,
+  aq_clean_2016,
+  aq_clean_2017,
+  aq_clean_2018,
+  aq_clean_2019
+)
+```
+
+
+```{r}
+Unbalanced_data <- aq_clean_all %>%
+  full_join(he_clean,     by = c("County.Code", "Year")) %>%
+  full_join(income_clean, by = c("County.Code", "Year")) %>%
+  drop_na()
+```
+
+```{r}
+write.csv(Unbalanced_data, "data/Health_Air_Clean.csv", row.names = FALSE)
+```
