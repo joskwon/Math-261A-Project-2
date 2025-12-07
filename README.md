@@ -1,9 +1,11 @@
-# MATH261A-project-template
+# MATH261A-project-2
 Example project repository for MATH 261A.
 
 ## Data 
 
-**Example statement:** Data used in this project is obtained from [San Francisco Open Data](https://data.sfgov.org) who provide the data under the [Open Data Commons Public Domain Dedication and License](https://opendatacommons.org/licenses/pddl/1-0/).
+Data used in this project is obtained from [San Francisco Open Data](https://data.sfgov.org) who provide the data under the [Open Data Commons Public Domain Dedication and License](https://opendatacommons.org/licenses/pddl/1-0/).
+
+Data used in this project is obtained from e
 
 ## External Resources
 
