@@ -1,12 +1,18 @@
 ---
-title: "Title"
-subtitle: "Subtitle"
-author: "Your Name"
+title: "The Influence of Air Pollution on Health Expenditures by US Counties"
+subtitle: "Does Local Air Pollution Answer for the Variations in Health Care Spending Across US Counties"
+author: "Joshua Kwon"
 thanks: "Project repository available at: [https://github.com/peteragao/MATH261A-project-template](https://github.com/peteragao/MATH261A-project-template)."
 date: today
 date-format: long
+
 abstract: "Abstract here."
-format: pdf
+
+format:
+  pdf:
+    mainfont: Times New Roman
+    linestretch: 1.5
+    
 bibliography: references.bib
 ---
 
@@ -15,16 +21,264 @@ bibliography: references.bib
 #| warning: false
 #| message: false
 
+library(knitr)
 library(tidyverse)
-library(palmerpenguins)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(skimr)
+library(glmnet)
+library(car)
+library(kableExtra)
+library(extrafont)
+```
+
+
+```{r}
+#| include: false
+#| warning: false
+#| message: false
+
+#Load datasets
+Health_Air <- read.csv("../data/Health_Air_Clean.csv")
 ```
 
 # Introduction
 
+Health care spending in the U.S. reached \$14,570 per person in 2023, growing 7.3 percent over the previous year according to the National Health Expenditure Accounts (NHEA). Health care costs now account for 17.3 percent of the nation’s GDP, far exceeding spending levels in other high-income nations, many of which spend roughly half as much per person. As public and private expenditures continue to rise, identifying cost drivers, especially preventable ones, has become increasingly urgent.
+
+Air pollution is one such driver with profound health implications, contributing largely to noncommunicable diseases. It is also a major contributor to respiratory and cardiovascular disease and responsible for an estimated 6.7 million deaths annually, according to the World Health Organization (WHO). The WHO also reports that in 2019, 99 percent of the world’s population lived in areas exceeding recommended air quality guideline levels. Because of this, air pollution will continue to exacerbate respiratory illnesses, hospitalizations, and demands for medical treatment, placing additional burden on people's and government's health care spending.
+
+Understanding how air pollution translates into health care spending is not only a public health priority but also an economic one. As health care costs rise and public budgets become strained, research clarifying these connections can help guide policy interventions aimed at both improving air quality and reducing medical expenditures. Recent studies explore the effect poor air quality has on health care expenditures. My review of the current literature summarizes the evidence linking air pollution to increased health care spending. This review forms the basis for my research plan, which will analyze the relationship between air pollution levels and county-level health care expenditures within the United States.
+
+# Literature Review
+
+A growing body of literature has examined the economic and social costs of air pollution, particularly its effect on healthcare expenditures. Empirical studies consistently show that increased pollution levels are associated with higher household or per capita health spending even across differing countries and pollutants observed.
+
+In China, several studies highlight the direct relationship between air quality and household healthcare expenses. @Zhou analyze the impact of air pollution, measured by the Air Quality Index (AQI), on household medical and healthcare expenditures. Using panel data from the China Family Panel Studies (CFPS) for 2014 and 2016, they match city-level AQI data with household-level consumption data. Their analysis demonstrates that poorer air quality significantly increases household consumption, including medical expenditures, with every additional AQI unit raising consumption by 0.275 yuan. They identify two mechanisms driving this effect: households spend more on anti-pollution products and seek better living conditions in response to pollution incidents, and they incur higher medical costs to mitigate health impacts. The study further finds non-linear effects of income, consistent with precautionary savings theory, and confirms robustness using six main pollutants, CO, NO2, SO2, O3, PM2.5, and PM10.
+
+Similarly, @Anwar examine developing countries and focus on ambient PM2.5 pollution as a determinant of per capita healthcare expenditures. Using World Bank data from 2000 to 2018, their regression models consider government, private, and total health expenditures, controlling for GDP per capita, education, population density, and temperature. Their findings indicate that higher PM2.5 levels increase healthcare spending, with the effect stronger for government expenditures, suggesting that public healthcare systems bear a larger burden of the pollution induced health costs.
+
+@Yang also focus on China, estimating the marginal effect of ambient PM2.5 exposure on household healthcare expenditures using the China Urban Household Survey (UHS) and satellite-based pollution estimates. Their study accounts for both demographic and environmental confounders, including temperature. Employing both OLS and instrumental variable (IV) strategies to address endogeneity, they find that a 1 percent increase in annual PM2.5 exposure increases healthcare expenditure by 0.536 percent under OLS, rising to 2.942 percent under IV estimation. These findings underscore the substantial causal impact of air pollution on healthcare costs.
+
+@Chen contributes to these studies by noting methodological challenges in quantifying the health costs of air pollution, such as economic development, sample selection bias in hospital records, and measurement error. Using the China Health and Nutrition Survey (CHNS), they match individual-level health expenditures with city-level AQI data, controlling for individual characteristics and weather. Their analysis confirms a significant and positive effect of pollution exposure on health spending, especially for cumulative exposure over multiple weeks, with PM2.5 and PM10 exerting the largest effects.
+
+Research in the United States and other developed countries also documents significant effects of environmental quality on healthcare spending. @Apergis examine the impact of per capita CO2 emissions on real per capita healthcare expenditures across all 50 U.S. states over 1966–2009. They find that the effect of emissions is stronger in states with higher healthcare spending. Since the relationship between CO2 emissions and health care expenses varies considerably across U.S. states, they find that the net benefit of reducing a unit of carbon dioxide emissions also varies significantly. 
+
+@Narayan extend the literature to selected OECD countries, and thereby wealthier countries, analyzing sulfur oxide (SOx), nitrogen oxide (NOx), and carbon monoxide (CO) emissions as determinants of healthcare spending from 1980–1999. They report significant long-run effects of SOx and CO emissions on per capita health expenditures, though the effect of NOx is statistically insignificant. Short-run effects are smaller, suggesting that the impact of pollution accumulates over time.
+
+Across developing and developed countries, the evidence consistently shows that air pollution, whether measured via specific pollutants or composite indices, like AQI, exerts a positive effect on health expenditures. While studies differ in their data sources, measurement approaches, and estimation techniques, a common finding is that fine particulate matter, PM2.5 and PM10, and carbon monoxide are particularly impactful. Moreover, endogeneity remains an important consideration, as unobserved economic,  environmental, or behavioral factors can confound estimates. This points to the need to use beyond just OLS.
+
+Despite this extensive literature, gaps remain. The interaction between air pollution, household income, and healthcare spending remains underexplored, particularly in the U.S. context.
+
 # Data
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: fig-summary-stats
+#| fig-cap: Summary statistics for key variables, including air pollutants, per-capita healthcare expenditures, and median household income. Year and County identifiers are excluded.
+
+summary_stats <- Health_Air %>%
+  select(where(is.numeric), -Year, -County.Code)
+
+summary_table <- summary_stats %>%
+  summarise(across(everything(), list(
+    mean = ~mean(., na.rm = TRUE),
+    sd = ~sd(., na.rm = TRUE),
+    median = ~median(., na.rm = TRUE),
+    min = ~min(., na.rm = TRUE),
+    max = ~max(., na.rm = TRUE)
+  ))) %>%
+  pivot_longer(everything(), names_to = c("variable", "stat"), names_sep = "_") %>%
+  pivot_wider(names_from = stat, values_from = value)
+
+summary_table %>%
+  kable(digits = 2) %>%
+  kable_styling(latex_options = "hold_position", full_width = FALSE)%>%
+  add_header_above(c("Summary Statistics" = ncol(summary_table)))
+```
+
+```{r fig-spending-vs-year-scatter}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: Scatter plot of healthcare spending across the years 2010-2019 for the 140 observations in the dataset. Regression line is included to better illustrate the change in healthcare expenditures.
+
+ggplot(Health_Air, aes(x = Year, y = Spending.Per.Capita.Mean)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "orange") +
+  ggtitle("Per Capita Health Care Expenditures vs Year") +
+  xlab("Year") +
+  ylab("Per Capita Health Care Expenditures ($)") +
+  scale_x_continuous(breaks = unique(floor(Health_Air$Year))) +  # show only whole years
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+From @fig-spending-vs-year-scatter we can see that healthcare spending has typically increased over the 10 year period. When plotting each pollutant against health expenditures, I reach unintuitive results.
+
+```{r fig-pollution-vs-year-scatter}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-cap: Scatter plot of healthcare spending versus each of the air pollutants specified. Regression line is included to better illustrate the change in healthcare expenditures.
+
+pollutants <- c("CO", "NO2", "SO2", "O3", "PM2.5", "PM10")
+
+Health_Air_long <- Health_Air %>%
+  pivot_longer(
+    cols = all_of(pollutants),
+    names_to = "pollutant",
+    values_to = "concentration"
+  )
+
+# Create faceted scatterplots
+
+ggplot(Health_Air_long, aes(x = concentration, y = Spending.Per.Capita.Mean)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "orange") +
+  facet_wrap(~pollutant, scales = "free_x") +
+  labs(
+    title = "Scatterplots of Health Expenditures vs Pollutants",
+    x = "Pollutant Concentration",
+    y = "Health Expenditures"
+  ) +
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+Many of the trends in @fig-pollution-vs-year-scatter indicate that there is no correlation between increased air pollution and healthcare expenditure against the findings of previous studies. This is most attributable to the biases aforementioned in the data section.
 
 # Methods
 
+
+
 # Results
+
+```{r regression-results}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-regression-results
+#| tbl-cap: Coefficients from OLS regression of per-capita healthcare expenditures on air pollutants and household income, including county and year fixed effects.
+#| tbl-cap-location: bottom
+
+lm_fit <- lm(Spending.Per.Capita.Mean ~ CO + NO2 + SO2 + O3 + PM2.5 + PM10 +
+    Median.Household.Income + factor(County) + factor(Year), data = Health_Air)
+
+coefs <- summary(lm_fit)$coefficients
+coefs <- as.data.frame(coefs)
+coefs <- coefs[!grepl("factor\\(County\\)|factor\\(Year\\)", rownames(coefs)), ]
+
+# Rename rows
+rownames(coefs) <- c("Intercept", "CO", "NO2", "SO2", "O3", "PM2.5", "PM10", "Median Household Income")
+
+# Create table
+kable(coefs, format = "latex", booktabs = TRUE, digits = 4, 
+      caption =NULL) %>%
+  kable_styling(latex_options = c("HOLD_position")) %>%
+  add_header_above(c("Regression Table" = ncol(coefs)))
+```
+
+from @tbl-regression-results we see
+
+```{r vif}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-vif
+#| tbl-cap: Variance Inflation Factors (VIF) for numeric predictors in the regression of per-capita healthcare expenditures on air pollutants and median household income. County and Year fixed effects are included but omitted from this table.
+#| tbl-cap-location: bottom
+
+# Calculate VIF
+vif_results <- vif(lm_fit)
+
+# Convert to data frame for stargazer
+# If gvif is a matrix (for factors with df>1)
+if(is.matrix(vif_results)) {
+  vif_df <- data.frame(
+    Variable = rownames(vif_results),
+    GVIF = vif_results[, "GVIF"],
+    Df = vif_results[, "Df"],
+    GVIF_Scaled = vif_results[, "GVIF^(1/(2*Df))"]
+  )
+} else {
+  vif_df <- data.frame(
+    Variable = names(vif_results),
+    GVIF = vif_results,
+    Df = 1,
+    GVIF_Scaled = sqrt(vif_results)  # for single df predictors
+  )
+}
+
+# Remove factor variables if you want only numeric predictors
+vif_df_clean <- vif_df[!grepl("^factor\\(County\\)|^factor\\(Year\\)", vif_df$Variable), ]
+
+rownames(vif_df_clean) <- NULL
+
+# Clean table
+kable(
+  vif_df_clean, 
+  format = "latex", 
+  booktabs = TRUE, 
+  digits = 2,
+  caption = NULL
+) %>%
+  kable_styling(latex_options = c("HOLD_position")) %>%
+  add_header_above(c("VIF Table" = ncol(vif_df_clean)))
+```
+
+From @tbl-vif we see
+
+```{r ridge-results}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-ridge-results
+#| tbl-cap: Ridge Regression Coefficients (cross-validated lambda) for per-capita healthcare expenditures on air pollutants and median household income. County and Year fixed effects included but not shown.
+#| tbl-cap-location: bottom
+
+x <- model.matrix(~ CO + NO2 + SO2 + O3 + PM2.5 + PM10 +
+                    Median.Household.Income +
+                    factor(County) + factor(Year), 
+                  data = Health_Air)
+x <- x[,-1]
+
+# Response vector
+y <- Health_Air$Spending.Per.Capita.Mean
+
+ridge_model <- cv.glmnet(x, y, alpha = 0)  # cross-validation to choose lambda
+
+# Best lambda
+ridge_lambda <- ridge_model$lambda.min
+
+# Coefficients at best lambda
+ridge_coef <- coef(ridge_model, s = "lambda.min")
+
+ridge_table <- data.frame(
+  Variable = rownames(ridge_coef),
+  Coefficient = as.numeric(ridge_coef)
+)
+
+# Remove the intercept and factor
+ridge_table <- ridge_table[!grepl("^factor\\(County\\)|^factor\\(Year\\)", ridge_table$Variable), ]
+ridge_table <- ridge_table[ridge_table$Variable != "(Intercept)", ]
+
+# Clean table
+kable(
+  ridge_table, 
+  format = "latex", 
+  booktabs = TRUE, 
+  digits = 4, 
+  row.names = FALSE
+) %>%
+  kable_styling(latex_options = c("HOLD_position")) %>%
+  add_header_above(c("Ridge Table" = ncol(ridge_table)))
+```
+
+from @tbl-ridge-results we see
+
+# Discussion
 
 # References
