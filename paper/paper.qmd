@@ -12,7 +12,9 @@ format:
   pdf:
     mainfont: Times New Roman
     linestretch: 1.5
-    
+    fig-pos: "H"
+    tbl-pos: "H"
+
 bibliography: references.bib
 ---
 
@@ -110,11 +112,12 @@ summary_table %>%
 ggplot(Health_Air, aes(x = Year, y = Spending.Per.Capita.Mean)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE, color = "orange") +
-  ggtitle("Per Capita Health Care Expenditures vs Year") +
+  ggtitle("Increases in Per Capita Healthcare Expenditures from 2010 to 2019") +
   xlab("Year") +
   ylab("Per Capita Health Care Expenditures ($)") +
-  scale_x_continuous(breaks = unique(floor(Health_Air$Year))) +  # show only whole years
-  theme(text = element_text(family = "Times New Roman"))
+  scale_x_continuous(breaks = unique(floor(Health_Air$Year))) +
+  theme_pubr() +
+  theme(text = element_text(family = "serif"))
 ```
 
 From @fig-spending-vs-year-scatter we can see that healthcare spending has typically increased over the 10 year period. When plotting each pollutant against health expenditures, I reach unintuitive results.
@@ -145,7 +148,8 @@ ggplot(Health_Air_long, aes(x = concentration, y = Spending.Per.Capita.Mean)) +
     x = "Pollutant Concentration",
     y = "Health Expenditures"
   ) +
-  theme(text = element_text(family = "Times New Roman"))
+  theme_pubr() +
+  theme(text = element_text(family = "serif"))
 ```
 
 Many of the trends in @fig-pollution-vs-year-scatter indicate that there is no correlation between increased air pollution and healthcare expenditure against the findings of previous studies. This is most attributable to the biases aforementioned in the data section.
@@ -181,7 +185,7 @@ kable(coefs, format = "latex", booktabs = TRUE, digits = 4,
   add_header_above(c("Regression Table" = ncol(coefs)))
 ```
 
-from @tbl-regression-results we see
+From @tbl-regression-results we see that bah blah blah
 
 ```{r vif}
 #| echo: false
