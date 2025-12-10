@@ -11,6 +11,7 @@ library(knitr)
 library(tidyverse)
 library(dplyr)
 library(blscrapeR)
+library(readr)
 ```
 
 ## Load datasets
@@ -19,22 +20,22 @@ Load all datasets
 
 ```{r}
 #Contains measurements of major air pollutants across US counties
-airquality2019 <- read.csv("data/AQSR2019.csv")
-airquality2018 <- read.csv("data/AQSR2018.csv")
-airquality2017 <- read.csv("data/AQSR2017.csv")
-airquality2016 <- read.csv("data/AQSR2016.csv")
-airquality2015 <- read.csv("data/AQSR2015.csv")
-airquality2014 <- read.csv("data/AQSR2014.csv")
-airquality2013 <- read.csv("data/AQSR2013.csv")
-airquality2012 <- read.csv("data/AQSR2012.csv")
-airquality2011 <- read.csv("data/AQSR2011.csv")
-airquality2010 <- read.csv("data/AQSR2010.csv")
+airquality2019 <- read.csv("../data/AQSR2019.csv")
+airquality2018 <- read.csv("../data/AQSR2018.csv")
+airquality2017 <- read.csv("../data/AQSR2017.csv")
+airquality2016 <- read.csv("../data/AQSR2016.csv")
+airquality2015 <- read.csv("../data/AQSR2015.csv")
+airquality2014 <- read.csv("../data/AQSR2014.csv")
+airquality2013 <- read.csv("../data/AQSR2013.csv")
+airquality2012 <- read.csv("../data/AQSR2012.csv")
+airquality2011 <- read.csv("../data/AQSR2011.csv")
+airquality2010 <- read.csv("../data/AQSR2010.csv")
 
 #Contains estimates for health expenditures per capita for US counties
-healthexpenditure <- read.csv("data/IHME_USA_HEALTH_CARE_SPENDING_CAUSE_COUNTY_2010_2019_TABLE_1_COUNTY_TOTAL_PER_CAPITA_2010_2019_Y2025M02D13.CSV")
+healthexpenditure <- read.csv("../data/IHME_USA_HEALTH_CARE_SPENDING_CAUSE_COUNTY_2010_2019_TABLE_1_COUNTY_TOTAL_PER_CAPITA_2010_2019_Y2025M02D13.CSV")
 
 #Contains median household income for US counties
-income <- read.csv("data/SAIPE_income.csv")
+income <- read.csv("../data/SAIPE_income.csv")
 ```
 
 ## Clean up
@@ -150,5 +151,5 @@ Unbalanced_data <- aq_clean_all %>%
 ```
 
 ```{r}
-write.csv(Unbalanced_data, "data/Health_Air_Clean.csv", row.names = FALSE)
+write.csv(Unbalanced_data, "../data/Health_Air_Clean.csv", row.names = FALSE)
 ```
