@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
 library(tidyverse)
 library(dplyr)
+library(blscrapeR)
 ```
 
 ## Load datasets
@@ -55,6 +56,29 @@ income_clean <- income %>%
          Median.Household.Income = Median.Household.Income.) %>%
   select(-X90..Confidence.Interval, -Name) %>%
   mutate(Median.Household.Income = as.numeric(gsub(",", "", Median.Household.Income)))
+```
+
+```{r}
+cpi_raw <- bls_api("CUUR0000SA0",
+                   startyear = 2010,
+                   endyear   = 2019)
+
+cpi <- cpi_raw %>%
+  group_by(year) %>%
+  summarize(cpi = mean(value, na.rm = TRUE)) %>%
+  ungroup()
+
+cpi_base <- cpi$cpi[cpi$year == 2019]
+
+cpi <- cpi %>%
+  mutate(inflator = cpi_base / cpi) %>%
+  rename(Year = year)
+
+income_clean <- income_clean %>%
+  left_join(cpi, by = "Year") %>%
+  mutate(Median.Household.Income.2019 = Median.Household.Income * inflator) %>%
+  select(Year, County.Code, Median.Household.Income.2019) %>%
+  rename(Median.Household.Income = Median.Household.Income.2019)
 ```
 
 
