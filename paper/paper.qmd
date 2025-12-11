@@ -74,14 +74,65 @@ Across developing and developed countries, the evidence consistently shows that 
 
 Despite this extensive literature, gaps remain. The interaction between air pollution, household income, and healthcare spending remains underexplored, particularly in the U.S. context.
 
-# Data
+## Data
+
+My dataset contains 665 observations of key air pollution measurements, healthcare expenditures, and median household income across 113 counties for the years 2010-2019. I selected six air pollutants, based on their use in the United States Air Quality Index (AQI), to reflect the air pollution in the observed counties. This lets me observe the effect of each pollutant independent of each other. These pollutants are carbon monoxide, CO; nitrogen dioxide, NO2; ozone, O3; sulfur dioxide, SO2; and fine particulate matters PM2.5 and PM10. These are reported in units of ppm, ppb, ppm, ppb, ug/m3 and ug/m3 respectively. Measurements for these pollutants come from the @epa2025air Air Quality Statistics Report and are contained in the `AQSR2010.csv` through `AQSR2019.csv` datasets. They report the 2nd highest non-overlapping 8-hour average in the year for CO; the annual mean of all the 1-hour measurements in the year for NO2; the 4th highest daily max 8-hour average in the year for O3; the annual mean of all the 1-hour measurements in the year for SO2; and the Weighted Annual Mean (mean weighted by calendar quarter) for the year for PM2.5 and PM10.
+
+Estimates for the county-level healthcare expenditures are provided by the @Health-Estimates and contained in the `IHME_estimates.csv` dataset. They estimate the per capita healthcare expenditures of 3110 counties across the years 2010-2019, adjusting their estimates to 2019 prices. The authors of this data calculated their estimates from the over 40 billion insurance claims and nearly 1 billion facility records they accessed across Medicare, Medicaid, private insurance, and out-of-pocket payments. 
+
+I collected county-level income data from the `SAIPE_income.csv` dataset provided by the @saipe2025's Small Area Income and Poverty Estimates (SAPIE) Program which reports on the median household income for every US county. I adjusted these values for inflation to 2019 prices to better match my healthcare expenditure data.
+
+County-level health expenditure data was only available for the years 2010-2019, so I limited my air pollution and income data to those same years and matched the datasets together by year and county. Due to inconsistent monitoring of air pollution, data for all pollutants in every county for each year was not available. Observations that did not have measurements for all six pollutants were dropped. Observations for counties without data for all 10 years were included however, and as such, this dataset is unbalanced. Additionally, states can flag data that may have been influenced by an exceptional event such as high winds or wildfire. These data points were excluded for this analysis. 
+
+
+```{r tbl-state-summary}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-state-summary
+#| tbl-cap: Frequency statistics of states included in the dataset.
+#| tbl-cap-location: bottom
+
+Health_Air$State <- trimws(sub(".*,", "", Health_Air$County))
+
+state_counts <- table(Health_Air$State)
+
+# Create summary table
+summary_table <- data.frame(
+  Metric = c("Number of unique states",
+             "Most common state",
+             "Least common state",
+             "Average counties per state"),
+  Value = c("-",
+            names(which.max(state_counts)),
+            names(which.min(state_counts)),
+            "-"),
+  Count = c(length(unique(Health_Air$State)),
+            max(state_counts),
+            min(state_counts),
+            as.integer(mean(state_counts)))  # rounded to 2 decimals
+)
+
+kable(summary_table, 
+      col.names = c("Metric", "State", "Count")) %>%
+      kable_styling(latex_options = c("HOLD_position")) %>%
+      add_header_above(c("State Summary Table" = ncol(summary_table)))
+```
+
+Monitoring sites and their capabilities are not uniformly distributed across the US. As seen in @tbl-state-summary, not every state is included and California is over represented. The trends in California will have an amplified effect on my analysis and bias my results.
+
+In 2010, the Patient Protection and Affordable Care Act (ACA) was passed. Estimates for healthcare expenditures all fall within this period, so I do not expect this to have largely affected my data or results.
+
+In 2004, the SAIPE Program changed from using the Current Population Survey to the American Community Survey; however, no such changed occurred between the years 2010-2019 and I do not expect this to have influenced the data.
+
 
 ```{r}
 #| echo: false
 #| message: false
 #| warning: false
-#| label: fig-summary-stats
-#| fig-cap: Summary statistics for key variables, including air pollutants, per-capita healthcare expenditures, and median household income. Year and County identifiers are excluded.
+#| label: tbl-summary-stats
+#| tbl-cap: Summary statistics for key variables, including air pollutants, per-capita healthcare expenditures, and median household income. Year and County identifiers are excluded.
+#| tbl-cap-location: bottom
 
 summary_stats <- Health_Air %>%
   select(where(is.numeric), -Year, -County.Code)
@@ -95,7 +146,13 @@ summary_table <- summary_stats %>%
     max = ~max(., na.rm = TRUE)
   ))) %>%
   pivot_longer(everything(), names_to = c("variable", "stat"), names_sep = "_") %>%
-  pivot_wider(names_from = stat, values_from = value)
+  pivot_wider(names_from = stat, values_from = value) %>%
+  mutate(variable = as.character(variable),  # convert to character if factor
+         variable = case_when(
+           variable == "Spending.Per.Capita.Mean" ~ "Healthcare Expenditures",
+           variable == "Median.Household.Income" ~ "Median Household Income",
+           TRUE ~ variable  # leave all other names unchanged
+         ))
 
 summary_table %>%
   kable(digits = 2) %>%
@@ -103,24 +160,50 @@ summary_table %>%
   add_header_above(c("Summary Statistics" = ncol(summary_table)))
 ```
 
-```{r fig-spending-vs-year-scatter}
+As seen in @tbl-summary-stats, the max values of many pollutants greatly exceed the median values. Even after removing exceptional events from the dataset, maximum values for some pollutants, notably CO, NO2, and PM10, greatly exceed the median. These point to several outliers in pollutant measurements that I expect will affect my analysis. Outliers in healthcare expenditures and median household income are visualized in @fig-year-scatter. Notably, the county with the highest median household income outpaces the average increase in other counties. These will also affect my analysis.
+
+```{r fig-year-scatter}
 #| echo: false
 #| message: false
 #| warning: false
-#| fig-cap: Scatter plot of healthcare spending across the years 2010-2019 for the 140 observations in the dataset. Regression line is included to better illustrate the change in healthcare expenditures.
+#| label: fig-year-scatter
+#| fig-cap: Scatter plot of median household income and healthcare spending in US dollars across the years 2010-2019 for the 665 observations in the dataset. Regression line is included to better illustrate the change in median household income and healthcare spending.
 
-ggplot(Health_Air, aes(x = Year, y = Spending.Per.Capita.Mean)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "orange") +
-  ggtitle("Increases in Per Capita Healthcare Expenditures from 2010 to 2019") +
-  xlab("Year") +
-  ylab("Per Capita Health Care Expenditures ($)") +
+max_income <- max(Health_Air$Median.Household.Income, na.rm = TRUE)
+max_spending <- max(Health_Air$Spending.Per.Capita.Mean, na.rm = TRUE)
+scale_factor <- max_income / max_spending
+
+ggplot(Health_Air, aes(x = Year)) +
+  # Income line
+  geom_point(aes(y = Median.Household.Income, color = "Median Household Income")) +
+  geom_smooth(aes(y = Median.Household.Income, color = "Median Household Income"),
+              method = "lm", se = TRUE) +
+  
+  geom_point(aes(y = Spending.Per.Capita.Mean * scale_factor,
+                 color = "Per Capita Health Care Expenditures")) +
+  geom_smooth(aes(y = Spending.Per.Capita.Mean * scale_factor,
+                  color = "Per Capita Health Care Expenditures"),
+              method = "lm", se = TRUE) +
+  
+  scale_color_manual(values = c(
+    "Median Household Income" = "steelblue",
+    "Per Capita Health Care Expenditures" = "darkseagreen")
+  ) +
+  
+  scale_y_continuous(
+    name = "Median Household Income",
+    sec.axis = sec_axis(~./scale_factor, name = "Per Capita Health Care Expenditures")
+  ) +
   scale_x_continuous(breaks = unique(floor(Health_Air$Year))) +
+  labs(title = "Income and Healthcare Expenditures Over Time",
+       x = "Year",
+       color = "Variable") +
+  
   theme_pubr() +
   theme(text = element_text(family = "serif"))
 ```
 
-From @fig-spending-vs-year-scatter we can see that healthcare spending has typically increased over the 10 year period. When plotting each pollutant against health expenditures, I reach unintuitive results.
+
 
 ```{r fig-pollution-vs-year-scatter}
 #| echo: false
@@ -137,6 +220,13 @@ Health_Air_long <- Health_Air %>%
     values_to = "concentration"
   )
 
+Health_Air_long <- Health_Air_long %>%
+  mutate(concentration = ifelse(
+    pollutant == "O3",
+    concentration * 1.05,  # add 5% padding for O3 only
+    concentration
+  ))
+
 # Create faceted scatterplots
 
 ggplot(Health_Air_long, aes(x = concentration, y = Spending.Per.Capita.Mean)) +
@@ -152,11 +242,25 @@ ggplot(Health_Air_long, aes(x = concentration, y = Spending.Per.Capita.Mean)) +
   theme(text = element_text(family = "serif"))
 ```
 
-Many of the trends in @fig-pollution-vs-year-scatter indicate that there is no correlation between increased air pollution and healthcare expenditure against the findings of previous studies. This is most attributable to the biases aforementioned in the data section.
+Many of the trends in @fig-pollution-vs-year-scatter indicate that there is a negative relationship between air pollution and healthcare expenditure, against the findings of previous studies. I expect this is due to the limitations in my data.
 
-# Methods
+## Methods
 
+To investigate the relationship between air pollution and per capita healthcare expenditures across U.S. counties, I use a multiple linear regression model. The outcome variable is the county-level per capita healthcare spending. The key predictor variables are the concentrations of six air pollutants, carbon monoxide (CO), nitrogen dioxide (NO2), sulfur dioxide (SO2), ozone (O3), and fine particulate matter (PM2.5 and PM10). Because socioeconomic conditions are known to influence healthcare spending, median household income (HI) is included as a control variable. The model also includes county and year fixed effects. County fixed effects account for time-invariant demographic and economic characteristics that differ across counties. Year fixed effects capture nationwide trends that affect all counties in a given year. The model is expressed as $$Y_{it} = \beta_0 + \beta_1 CO_{it} + \beta_2 NO2_{it} + \beta_3 SO2_{it} + \beta_4 O3_{it} + \beta_5 PM2.5_{it} + \beta_6 PM10_{it} + \beta_7 HI_{it} + \gamma_i + \delta_t + \varepsilon_{it}$$ where $Y_{it}$ denotes per capita healthcare expenditure in county $i$ during year $t$. The intercept term $\beta_0$ represents the expected per capita healthcare expenditure when all predictors are equal to zero for the reference county and reference year. Coefficients $\beta_1$ through $\beta_7$ represent the expected change in per capita healthcare expenditures associated with a one unit increase in the respective predictor, holding all other variables constant and controlling for county and year effects. The terms $ \gamma_i$ and $\delta_t$ represent county fixed effects and year fixed effects, respectively.
 
+We assume the error term, $\varepsilon_{it}$ is random with mean 0 and finite variance $\sigma^2$, conditional on the fixed effects. The validity of the OLS estimates relies on standard assumptions, including linearity, independence of errors, homoscedasticity, normality of the errors, and no perfect multicollinearity among predictors.
+
+The parameters are estimated using the method of least squares which minimizes the sum of the squared residuals $$Q = \sum_{i,t}(Y_{it} - \beta_0 - \sum_{j=1}^{7} \beta_jX_{ijt}-\gamma_i-\delta_t)^2$$ producing fitted values $\hat{Y_it} = \hat\beta_0 + \sum_{j=1}^{7} \hat\beta_jX_{ijt} + \hat\gamma_i + \hat\delta_t$ that best predict healthcare expenditures based on pollutant concentrations and income after accounting for county and year fixed effects.
+
+We perform hypothesis tests to determine whether each predictors has a statistically significant association with healthcare spending. For each predictor, we define the null hypothesis as $H_0:\beta_j=0$, indicating no linear relationship with healthcare expenditures, holding all other variables and fixed effects constant. We define the alternative hypothesis as $H_A:\beta_j\neq0$, indicating that a linear relationship exists. All tests are evaluated at the 5% significance level.
+
+Because the sources of air pollutants are often highly correlated, we expect to see evidence of multicollinearity which can destabilize OLS estimates. To detect multicollinearity among predictors, I use variance inflation factors (VIF). These factors measure how much the variances of the estimated regression coefficients are inflated as compared to when the predictor variables are not linearly related.
+
+To address this, we use a Ridge regression, which applies L2 regularization to shrink coefficient estimates toward zero without eliminating predictors, reducing variance and improving the stability of estimated effects. Ridge regression modifies the method of least squares to allow biased estimators of the regression coefficients. Ridge regression estimates are obtained by the method of penalized least squares. The penalized least squares criterion, given by $$Q = \sum_{i,t}(Y_{it} - \beta_0 - \sum_{j=1}^{7} \beta_jX_{ijt}-\gamma_i-\delta_t)^2 + \lambda\sum_{j=1}^{7}\beta_j^2$$ combines the usual sum of squared errors with a penalty for large regression coefficients. The penalty parameter for Ridge regression is selected via cross-validation to minimize prediction error.
+
+One limitation with our use of VIFs is that they cannot distinguish between several simultaneous multicollinearities, but they are still valuable as a method to detect multicollinearity. A major limitation of ridge regression is that ordinary inference procedures are not applicable and exact distributional properties are not known. Bootstrapping can be employed to evaluate the precision of ridge regression coefficients, but this was not performed in this paper. Another limitation of ridge regression is that the choice of the biasing constant, $\lambda$, is a judgmental one.
+
+Both OLS and Ridge regression models are implemented in the R programming language [@R].
 
 # Results
 
@@ -165,7 +269,7 @@ Many of the trends in @fig-pollution-vs-year-scatter indicate that there is no c
 #| message: false
 #| warning: false
 #| label: tbl-regression-results
-#| tbl-cap: Coefficients from OLS regression of per-capita healthcare expenditures on air pollutants and household income, including county and year fixed effects.
+#| tbl-cap: Coefficients from OLS regression of per capita healthcare expenditures on air pollutants and household income, including county and year fixed effects.
 #| tbl-cap-location: bottom
 
 lm_fit <- lm(Spending.Per.Capita.Mean ~ CO + NO2 + SO2 + O3 + PM2.5 + PM10 +
@@ -177,28 +281,33 @@ coefs <- coefs[!grepl("factor\\(County\\)|factor\\(Year\\)", rownames(coefs)), ]
 
 # Rename rows
 rownames(coefs) <- c("Intercept", "CO", "NO2", "SO2", "O3", "PM2.5", "PM10", "Median Household Income")
+coefs <- coefs[, c("Estimate", "Pr(>|t|)")]
 
-# Create table
-kable(coefs, format = "latex", booktabs = TRUE, digits = 4, 
-      caption =NULL) %>%
+coefs <- cbind(Predictor = rownames(coefs), coefs)
+rownames(coefs) <- NULL
+
+kable(coefs, format = "latex", booktabs = TRUE, digits = 4) %>%
   kable_styling(latex_options = c("HOLD_position")) %>%
   add_header_above(c("Regression Table" = ncol(coefs)))
 ```
 
-From @tbl-regression-results we see that bah blah blah
+@tbl-regression-results shows the results of the multiple linear regression. Using a 5% significance level, only SO2 and PM10 were positively and significantly associated with per capita healthcare spending. Specifically, a one-unit increase in SO2 measurements was associated with an increase of 54.9 dollars in per capita healthcare expenditures, and a one-unit increase in PM10 was associated with an increase of 5.77 dollars in per capita healthcare expenditures. These results provide statistical evidence supporting a positive relationship between these pollutants and spending.
+
+CO and O3 showed weaker associations with spending, but were not statistically significant at the 5% level. In contrast, NO2 and PM2.5 showed no evidence of an association with healthcare spending.
+
+Some of our regression results are counter intuitive. We would not expect increases in any pollution concentration to decrease healthcare expenditures, and many of these pollutants have established negative health effects, so non significance is unexpected. These results reaffirm our suspicions of multicollinearity, so I use variance inflation factors to measure this. 
 
 ```{r vif}
 #| echo: false
 #| message: false
 #| warning: false
 #| label: tbl-vif
-#| tbl-cap: Variance Inflation Factors (VIF) for numeric predictors in the regression of per-capita healthcare expenditures on air pollutants and median household income. County and Year fixed effects are included but omitted from this table.
+#| tbl-cap: Variance Inflation Factors (VIF) for predictors in the regression of per capita healthcare expenditures on air pollutants and median household income. County and year fixed effects are included but omitted from this table.
 #| tbl-cap-location: bottom
 
 # Calculate VIF
 vif_results <- vif(lm_fit)
 
-# Convert to data frame for stargazer
 # If gvif is a matrix (for factors with df>1)
 if(is.matrix(vif_results)) {
   vif_df <- data.frame(
@@ -233,55 +342,61 @@ kable(
   add_header_above(c("VIF Table" = ncol(vif_df_clean)))
 ```
 
-From @tbl-vif we see
+The variance inflation factor (VIF) results in @tbl-vif indicate moderate multicollinearity, and we would expect OLS to produce unstable coefficients. Several pollutants, notably NO2, O3, and PM10, have VIF greater than three and median household income has a VIF greater than six. To address this, we supplement our OLS with a ridge regression.
 
 ```{r ridge-results}
 #| echo: false
 #| message: false
 #| warning: false
 #| label: tbl-ridge-results
-#| tbl-cap: Ridge Regression Coefficients (cross-validated lambda) for per-capita healthcare expenditures on air pollutants and median household income. County and Year fixed effects included but not shown.
+#| tbl-cap: Ridge regression coefficients for per capita healthcare expenditures on air pollutants and median household income. County and year fixed effects included but not shown.
 #| tbl-cap-location: bottom
 
-x <- model.matrix(~ CO + NO2 + SO2 + O3 + PM2.5 + PM10 +
-                    Median.Household.Income +
-                    factor(County) + factor(Year), 
-                  data = Health_Air)
-x <- x[,-1]
+numeric_vars <- c("CO", "NO2", "SO2", "O3", "PM2.5", "PM10", "Median.Household.Income")
 
-# Response vector
-y <- Health_Air$Spending.Per.Capita.Mean
+# Standardize them (subtract mean, divide by sd)
+Health_Air_std <- Health_Air
+Health_Air_std[numeric_vars] <- scale(Health_Air[numeric_vars])
 
-ridge_model <- cv.glmnet(x, y, alpha = 0)  # cross-validation to choose lambda
+x_std <- model.matrix(~ CO + NO2 + SO2 + O3 + PM2.5 + PM10 +
+                      Median.Household.Income +
+                      factor(County) + factor(Year), 
+                      data = Health_Air_std)
+x_std <- x_std[, -1]  # Remove intercept
+
+# Response vector remains the same
+y <- Health_Air_std$Spending.Per.Capita.Mean
+ridge_model_std <- cv.glmnet(x_std, y, alpha = 0)  # alpha=0 for ridge
 
 # Best lambda
-ridge_lambda <- ridge_model$lambda.min
+ridge_lambda_std <- ridge_model_std$lambda.min
 
 # Coefficients at best lambda
-ridge_coef <- coef(ridge_model, s = "lambda.min")
+ridge_coef_std <- coef(ridge_model_std, s = "lambda.min")
 
-ridge_table <- data.frame(
-  Variable = rownames(ridge_coef),
-  Coefficient = as.numeric(ridge_coef)
+# Make a tidy table
+ridge_table_std <- data.frame(
+  Variable = rownames(ridge_coef_std),
+  Coefficient = as.numeric(ridge_coef_std)
 )
 
-# Remove the intercept and factor
-ridge_table <- ridge_table[!grepl("^factor\\(County\\)|^factor\\(Year\\)", ridge_table$Variable), ]
-ridge_table <- ridge_table[ridge_table$Variable != "(Intercept)", ]
+# Remove intercept and factor variables
+ridge_table_std <- ridge_table_std[!grepl("^factor\\(County\\)|^factor\\(Year\\)", ridge_table_std$Variable), ]
+ridge_table_std <- ridge_table_std[ridge_table_std$Variable != "(Intercept)", ]
 
 # Clean table
 kable(
-  ridge_table, 
+  ridge_table_std, 
   format = "latex", 
   booktabs = TRUE, 
   digits = 4, 
   row.names = FALSE
 ) %>%
   kable_styling(latex_options = c("HOLD_position")) %>%
-  add_header_above(c("Ridge Table" = ncol(ridge_table)))
+  add_header_above(c("Ridge Table" = ncol(ridge_table_std)))
 ```
 
-from @tbl-ridge-results we see
+We examined the associations between air pollutants, median household income, and per capita healthcare spending using ridge regression. Predictors were standardized for clearer comparisons of the effects, and the results are shown in @tbl-ridge-results. Median household income had the largest positive effect on spending, with a one standard deviation increase associated with an increase of \$179 in per capita healthcare expenditures. Among air pollutants, SO2 showed the greatest positive association with each standard deviation increase associated with a \$54 increase in spending. Surprisingly, CO and NO2 continued to exhibit large negative associations. PM10 and PM2.5 also had negative effects, but to a lesser extent. O3 had a negligible effect on healthcare expenditures.
 
 # Discussion
 
