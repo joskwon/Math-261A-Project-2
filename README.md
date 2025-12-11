@@ -1,5 +1,5 @@
 # MATH261A-project-2
-Project repository for MATH 261A Project 2.
+Project repository for MATH 261A Project 2. Submitted 12/10/25 by Joshua Kwon.
 
 ## Data 
 
@@ -8,6 +8,14 @@ Data used in this project is obtained from the [Institute for Health Metrics and
 Data used in this project is obtained from the [United States Census Bureau](https://www.census.gov/en.html) who is committed to open government by sharing its public data as [open data](https://www.census.gov/about/policies/open-gov/open-data.html#:~:text=Accessing%20Public%20Data,Explore%20Census%20Data).
 
 Data used in this project is obtained from the [United States Environmental Protection Agency](https://www.epa.gov/outdoor-air-quality-data) who provides data in the [public domain](https://edg.epa.gov/epa_data_license.html).
+
+## Analysis
+
+Contains code used to clean up data for the paper.
+
+## Paper
+
+Contains final project, pdf file, qmd file, and references.
 
 ## External Resources
 
