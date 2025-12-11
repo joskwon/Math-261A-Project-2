@@ -32,11 +32,12 @@ airquality2011 <- read.csv("../data/AQSR2011.csv")
 airquality2010 <- read.csv("../data/AQSR2010.csv")
 
 #Contains estimates for health expenditures per capita for US counties
-healthexpenditure <- read.csv("../data/IHME_USA_HEALTH_CARE_SPENDING_CAUSE_COUNTY_2010_2019_TABLE_1_COUNTY_TOTAL_PER_CAPITA_2010_2019_Y2025M02D13.CSV")
+healthexpenditure <- read.csv("../data/IHME_estimates.csv")
 
 #Contains median household income for US counties
 income <- read.csv("../data/SAIPE_income.csv")
 ```
+
 
 ## Clean up
 
